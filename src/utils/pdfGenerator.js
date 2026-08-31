@@ -42,8 +42,8 @@ export async function generateDirectoryPDF(records, options = {}) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const availableWidth = pageWidth - marginMm * 2;
-  const colGap = colCount >= 4 ? 3.5 : 5; // mm gap between columns
-  const colWidth = (availableWidth - colGap * (colCount - 1)) / colCount;
+  const colGap = 0; // Contiguous table grid (0 gap between columns)
+  const colWidth = availableWidth / colCount;
 
   let currentY = marginMm;
 
@@ -60,7 +60,7 @@ export async function generateDirectoryPDF(records, options = {}) {
 
   const paddingInside = includeBorders ? (colCount >= 4 ? 2 : 2.5) : 1;
   const textWidth = colWidth - paddingInside * 2;
-  const rowSpacing = colCount >= 4 ? 3 : 4;
+  const rowSpacing = 0; // Contiguous table grid (0 gap between rows)
 
   // Scale font sizes based on column count
   let adjNameSize = fontSizeName;
@@ -112,7 +112,24 @@ export async function generateDirectoryPDF(records, options = {}) {
       }
 
       let cardContentH = 0;
-      const measuredFields = fieldEntries.map((fe, idx) => {
+      const measuredFields = [];
+
+      // Add "To," directly above every Name/Business Name on the LEFT
+      doc.setFont(fontFamily, 'bold');
+      doc.setFontSize(adjNameSize);
+      const toLines = ['To,'];
+      const toH = toLines.length * (adjNameSize * 0.40);
+      cardContentH += toH + 0.8;
+      measuredFields.push({
+        lines: toLines,
+        h: toH,
+        size: adjNameSize,
+        isBold: true,
+        rgb: nameRgb,
+        align: 'left',
+      });
+
+      fieldEntries.forEach((fe, idx) => {
         const isFirst = idx === 0;
         const isLast = idx === fieldEntries.length - 1;
         const isPhoneLike = /phone|contact|mobile|cell|tel|number/i.test(fe.colName);
@@ -144,7 +161,14 @@ export async function generateDirectoryPDF(records, options = {}) {
         const h = lines.length * (size * 0.40);
         cardContentH += h + 1.2;
 
-        return { lines, h, size, isBold, rgb };
+        measuredFields.push({
+          lines,
+          h,
+          size,
+          isBold,
+          rgb,
+          align: options.textAlign === 'left' ? 'left' : 'center',
+        });
       });
 
       const cardH = cardContentH + paddingInside * 2;
@@ -169,23 +193,24 @@ export async function generateDirectoryPDF(records, options = {}) {
       const item = rowItems[c];
       const colX = marginMm + c * (colWidth + colGap);
 
-      if (item) {
-        // Draw Box Border around entry
-        if (includeBorders) {
-          doc.setDrawColor(borderRgb.r, borderRgb.g, borderRgb.b);
-          doc.setLineWidth(0.3);
-          doc.setFillColor(255, 255, 255);
-          doc.roundedRect(colX, currentY, colWidth, maxCardHeight, 1.2, 1.2, 'FD');
-        }
+      // Draw Box Border around every cell in the grid (matching Excel exactly)
+      if (includeBorders) {
+        doc.setDrawColor(borderRgb.r, borderRgb.g, borderRgb.b);
+        doc.setLineWidth(0.4);
+        doc.setFillColor(255, 255, 255);
+        doc.rect(colX, currentY, colWidth, maxCardHeight, 'FD');
+      }
 
+      if (item) {
         let drawY = currentY + paddingInside;
-        const textX = colX + paddingInside;
 
         item.measuredFields.forEach((mf) => {
           doc.setFont(fontFamily, mf.isBold ? 'bold' : 'normal');
           doc.setFontSize(mf.size);
           doc.setTextColor(mf.rgb.r, mf.rgb.g, mf.rgb.b);
-          doc.text(mf.lines, textX, drawY + (mf.size * 0.35));
+          const align = mf.align || (options.textAlign === 'left' ? 'left' : 'center');
+          const drawX = align === 'left' ? colX + paddingInside : colX + colWidth / 2;
+          doc.text(mf.lines, drawX, drawY + (mf.size * 0.35), { align });
           drawY += mf.h + 1.2;
         });
       }

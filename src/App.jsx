@@ -47,13 +47,14 @@ export default function App() {
 
   // Styling options
   const [options, setOptions] = useState({
-    sheetTitle: 'Selected Data Extract',
+    sheetTitle: 'Business Directory',
     fontFamily: 'Calibri',
     includeBorders: true,
     showPhoneLabel: false,
     pageSize: 'A4',
     orientation: 'portrait',
-    columnsCount: 2,
+    columnsCount: 3,
+    textAlign: 'center',
     showTitleBanner: false,
     nameColor: '#0F172A',
     addressColor: '#334155',

@@ -67,12 +67,27 @@ function createDirectoryRichText(record, options = {}) {
   const showPhoneLabel = options.showPhoneLabel ?? false;
   const fontScale = options.fontScale || 1.0;
   const selectedColumns = options.selectedColumns;
+  const colWidth = options.colWidth || 38;
 
   const nameColorArgb = hexToArgb(options.nameColor || '#0F172A', 'FF0F172A');
   const addrColorArgb = hexToArgb(options.addressColor || '#334155', 'FF334155');
   const phoneColorArgb = hexToArgb(options.phoneColor || '#0F172A', 'FF0F172A');
 
   const parts = [];
+
+  // Left-aligned "To," header
+  const isCentered = options.textAlign !== 'left';
+  const padSpaces = isCentered ? ' '.repeat(Math.max(45, Math.round(colWidth * 1.6))) : '';
+
+  parts.push({
+    text: `To,${padSpaces}\n`,
+    font: {
+      name: fontName,
+      bold: true,
+      size: Math.max(8.5, Math.round(11 * fontScale * 10) / 10),
+      color: { argb: nameColorArgb },
+    },
+  });
 
   if (selectedColumns && selectedColumns.length > 0) {
     // Extract values ONLY for selected columns
@@ -295,7 +310,7 @@ export async function generateDirectoryExcel(records, options = {}) {
     // Dynamic row height calculation based on column width and address/field lengths
     const heights = rowRecs.map(rec => {
       if (!rec) return 0;
-      let totalLines = 0;
+      let totalLines = 1; // +1 line for "To," above the name
       if (selectedColumns && selectedColumns.length > 0) {
         selectedColumns.forEach(col => {
           const val = String(rec[col] ?? rec[col.toLowerCase()] ?? '');
@@ -308,7 +323,7 @@ export async function generateDirectoryExcel(records, options = {}) {
         const nameLines = Math.ceil((rec.name?.length || 0) / (colWidth * 0.85)) || 1;
         const addrLines = Math.ceil((rec.address?.length || 0) / (colWidth * 0.95)) || 1;
         const phoneLines = rec.phone ? 1 : 0;
-        totalLines = nameLines + addrLines + phoneLines;
+        totalLines += nameLines + addrLines + phoneLines;
       }
       return (totalLines * 15) + 14;
     });
@@ -326,8 +341,9 @@ export async function generateDirectoryExcel(records, options = {}) {
       cell.fill = cardFill;
 
       if (rec) {
-        cell.value = createDirectoryRichText(rec, { ...options, fontScale });
-        cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left', indent: 1 };
+        cell.value = createDirectoryRichText(rec, { ...options, fontScale, colWidth });
+        const align = options.textAlign || 'center';
+        cell.alignment = { wrapText: true, vertical: 'top', horizontal: align, indent: align === 'left' ? 1 : 0 };
       }
     }
 
@@ -727,8 +743,9 @@ export async function generateCombinedExcel(records, options = {}) {
       cell.fill = cardFill;
 
       if (rec) {
-        cell.value = createDirectoryRichText(rec, { ...options, fontScale });
-        cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left', indent: 1 };
+        cell.value = createDirectoryRichText(rec, { ...options, fontScale, colWidth });
+        const align = options.textAlign || 'center';
+        cell.alignment = { wrapText: true, vertical: 'top', horizontal: align, indent: align === 'left' ? 1 : 0 };
       }
     }
 
@@ -777,8 +794,9 @@ export async function generateDirectoryBuffer(records, options = {}) {
       cell.border = cardBorder;
 
       if (rec) {
-        cell.value = createDirectoryRichText(rec, options);
-        cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+        cell.value = createDirectoryRichText(rec, { ...options, colWidth: 38 });
+        const align = options.textAlign || 'center';
+        cell.alignment = { wrapText: true, vertical: 'top', horizontal: align };
       }
     }
 

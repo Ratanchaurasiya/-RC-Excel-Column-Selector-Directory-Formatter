@@ -321,9 +321,10 @@ export default function DirectoryPreview({
 
             {/* Dynamic Multi-Column Grid */}
             <div
-              className="grid gap-3.5"
+              className={`grid ${options.includeBorders ? 'gap-0 border' : 'gap-3.5'}`}
               style={{
-                gridTemplateColumns: `repeat(${columnsCount}, minmax(0, 1fr))`
+                gridTemplateColumns: `repeat(${columnsCount}, minmax(0, 1fr))`,
+                borderColor: options.includeBorders ? borderColor : 'transparent'
               }}
             >
               {pageRecords.map((record) => (
@@ -331,7 +332,7 @@ export default function DirectoryPreview({
                   key={record.id}
                   className={`group relative transition-all flex flex-col justify-between ${
                     options.includeBorders
-                      ? 'p-3 rounded-lg border bg-white shadow-2xs'
+                      ? 'p-3 bg-white border'
                       : 'p-1.5 hover:bg-slate-50/60 rounded-md'
                   }`}
                   style={{
@@ -392,6 +393,7 @@ export default function DirectoryPreview({
                             const isLast = idx === fields.length - 1;
                             const isPhoneLike = /phone|contact|mobile|cell|tel|number/i.test(field.colName);
                             const isCgpaOrScore = /cgpa|score|grade|percent|rate/i.test(field.colName);
+                            const alignClass = options.textAlign === 'left' ? 'text-left' : 'text-center';
 
                             let color = addressColor;
                             if (options[`color_${field.colName}`]) {
@@ -404,15 +406,24 @@ export default function DirectoryPreview({
 
                             if (isFirst) {
                               return (
-                                <div
-                                  key={field.colName}
-                                  className={`font-bold mb-1 leading-tight ${
-                                    columnsCount >= 4 ? 'text-xs' : 'text-[13px]'
-                                  }`}
-                                  style={{ color }}
-                                >
-                                  {field.val}
-                                </div>
+                                <React.Fragment key={field.colName}>
+                                  <div
+                                    className={`leading-tight mb-1 font-bold text-left ${
+                                      columnsCount >= 4 ? 'text-xs' : 'text-[13px]'
+                                    }`}
+                                    style={{ color }}
+                                  >
+                                    To,
+                                  </div>
+                                  <div
+                                    className={`font-bold mb-1 leading-tight ${alignClass} ${
+                                      columnsCount >= 4 ? 'text-xs' : 'text-[13px]'
+                                    }`}
+                                    style={{ color }}
+                                  >
+                                    {field.val}
+                                  </div>
+                                </React.Fragment>
                               );
                             }
 
@@ -420,7 +431,7 @@ export default function DirectoryPreview({
                               return (
                                 <div
                                   key={field.colName}
-                                  className={`font-bold tracking-tight mt-auto pt-1 ${
+                                  className={`font-bold tracking-tight mt-auto pt-1 ${alignClass} ${
                                     columnsCount >= 4 ? 'text-[10.5px]' : 'text-[11.5px]'
                                   }`}
                                   style={{ color }}
@@ -433,7 +444,7 @@ export default function DirectoryPreview({
                             return (
                               <div
                                 key={field.colName}
-                                className={`leading-snug mb-1 whitespace-pre-line ${
+                                className={`leading-snug mb-1 whitespace-pre-line ${alignClass} ${
                                   columnsCount >= 4 ? 'text-[10px]' : 'text-[11px]'
                                 }`}
                                 style={{ color }}

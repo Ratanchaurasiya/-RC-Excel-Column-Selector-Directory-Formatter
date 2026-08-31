@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   SlidersHorizontal, BookOpen, Layers, LayoutGrid, Palette, FileText, Download,
-  Sparkles, Check, ChevronDown, ChevronUp, RefreshCw, Eye
+  Sparkles, Check, ChevronDown, ChevronUp, RefreshCw, Eye, AlignCenter, Square
 } from 'lucide-react';
 import { PREDEFINED_COLORS, THEME_PALETTES } from '../utils/colorUtils';
 
@@ -317,7 +317,7 @@ export default function SettingsBar({ options, setOptions, onGenerateExcel, isGe
       </div>
 
       {/* Additional Page & Format Settings */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs pt-1">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 text-xs pt-1">
         {/* Paper Size */}
         <div>
           <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1">
@@ -363,8 +363,48 @@ export default function SettingsBar({ options, setOptions, onGenerateExcel, isGe
             onChange={(e) => setOptions(prev => ({ ...prev, includeBorders: e.target.value === 'true' }))}
             className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-800 bg-white font-medium focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200 outline-none"
           >
-            <option value="true">Include Box Borders Around Every Entry</option>
-            <option value="false">Clean Print (No Box Borders)</option>
+            <option value="true">Include Box Borders</option>
+            <option value="false">No Box Borders</option>
+          </select>
+        </div>
+
+        {/* Border Color */}
+        <div>
+          <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1">
+            <Square className="w-3.5 h-3.5 text-slate-700" />
+            Border Color
+          </label>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="color"
+              value={options.borderColor || '#334155'}
+              onChange={(e) => setOptions(prev => ({ ...prev, borderColor: e.target.value }))}
+              className="w-7 h-7 rounded-lg border border-slate-300 cursor-pointer bg-white p-0.5"
+              title="Choose Border Color (Excel, PDF & Live Preview)"
+            />
+            <input
+              type="text"
+              value={options.borderColor || '#334155'}
+              onChange={(e) => setOptions(prev => ({ ...prev, borderColor: e.target.value }))}
+              maxLength={7}
+              className="w-full px-2 py-1 text-xs font-mono font-semibold rounded-lg border border-slate-300 bg-white text-slate-800 focus:border-emerald-500 outline-none uppercase"
+            />
+          </div>
+        </div>
+
+        {/* Text Alignment */}
+        <div>
+          <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1">
+            <AlignCenter className="w-3.5 h-3.5 text-indigo-600" />
+            Text Alignment
+          </label>
+          <select
+            value={options.textAlign || 'center'}
+            onChange={(e) => setOptions(prev => ({ ...prev, textAlign: e.target.value }))}
+            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-800 bg-white font-medium focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200 outline-none"
+          >
+            <option value="center">Center Aligned (Standard)</option>
+            <option value="left">Left Aligned</option>
           </select>
         </div>
 
