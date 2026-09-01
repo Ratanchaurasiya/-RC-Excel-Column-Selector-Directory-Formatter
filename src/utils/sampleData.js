@@ -289,6 +289,32 @@ export const STUDENT_SAMPLE_RECORDS = [
   }
 ];
 
+export const STUDENT_SAMPLE_WITH_DUPLICATES = [
+  ...STUDENT_SAMPLE_RECORDS,
+  {
+    id: 'rec_s7_dup',
+    Name: 'Rahul',
+    'Contact No.': '9876543210',
+    Address: '12 MG Road, Sector 4',
+    District: 'North',
+    CGPA: '8.5',
+    name: 'Rahul',
+    phone: '9876543210',
+    address: '12 MG Road, Sector 4, North'
+  },
+  {
+    id: 'rec_s8_dup',
+    Name: 'Priya',
+    'Contact No.': '9876543212',
+    Address: '78 Park Street, Green View',
+    District: 'South',
+    CGPA: '8.8',
+    name: 'Priya',
+    phone: '9876543212',
+    address: '78 Park Street, Green View, South'
+  }
+];
+
 export function generateStudentSampleWorkbook(XLSX) {
   const wsData = [
     STUDENT_SAMPLE_COLUMNS,

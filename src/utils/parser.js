@@ -750,6 +750,8 @@ export async function parseExcelData(fileOrBuffer) {
     activeSheet: sheetNames.join(', '),
     columns: allColumns.length > 0 ? allColumns : ['Name', 'Address', 'Phone Number'],
     tableData: allTableData,
+    rawTableData: allTableData,
+    rawRecords: allRawRecords,
     records: unique.length > 0 ? unique : allRawRecords,
     stats: {
       totalRaw: allTableData.length > 0 ? allTableData.length : allRawRecords.length,
@@ -768,6 +770,8 @@ export function parseRawTextData(text) {
     return {
       columns: [],
       tableData: [],
+      rawTableData: [],
+      rawRecords: [],
       records: [],
       stats: { totalRaw: 0, duplicatesRemoved: 0, formattedCount: 0, totalColumns: 0 }
     };
@@ -811,6 +815,8 @@ export function parseRawTextData(text) {
     activeSheet: 'Pasted Data',
     columns: allColumns,
     tableData: allTableData,
+    rawTableData: allTableData,
+    rawRecords: rawRecords,
     records: unique.length > 0 ? unique : rawRecords,
     stats: {
       totalRaw: allTableData.length > 0 ? allTableData.length : rawRecords.length,

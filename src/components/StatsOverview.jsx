@@ -1,11 +1,11 @@
 import React from 'react';
-import { Database, CheckCircle2, CopyX, Columns2, Sparkles } from 'lucide-react';
+import { Database, CheckCircle2, CopyX, Columns2 } from 'lucide-react';
 
-export default function StatsOverview({ stats, recordsCount }) {
+export default function StatsOverview({ stats, recordsCount, columnsCount = 3, removeDuplicates = true }) {
   const cards = [
     {
       label: 'Total Records Detected',
-      value: stats?.totalRaw || recordsCount,
+      value: (stats?.totalRaw || recordsCount).toLocaleString(),
       subtext: 'From source workbook',
       icon: Database,
       color: 'text-blue-600',
@@ -14,17 +14,17 @@ export default function StatsOverview({ stats, recordsCount }) {
     },
     {
       label: 'Duplicates Removed',
-      value: stats?.duplicatesRemoved || 0,
-      subtext: 'Normalized & cleaned',
+      value: removeDuplicates ? (stats?.duplicatesRemoved || 0).toLocaleString() : '0',
+      subtext: removeDuplicates ? `${stats?.duplicatesRemoved || 0} duplicate(s) excluded` : 'Duplicate removal is OFF',
       icon: CopyX,
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
-      border: 'border-amber-200',
+      color: removeDuplicates && (stats?.duplicatesRemoved > 0) ? 'text-amber-600' : 'text-slate-400',
+      bg: removeDuplicates && (stats?.duplicatesRemoved > 0) ? 'bg-amber-50' : 'bg-slate-50',
+      border: removeDuplicates && (stats?.duplicatesRemoved > 0) ? 'border-amber-200' : 'border-slate-200',
     },
     {
-      label: 'Formatted Directory Records',
-      value: recordsCount,
-      subtext: 'Ready for export',
+      label: 'Active Output Records',
+      value: recordsCount.toLocaleString(),
+      subtext: 'Ready for Excel & PDF export',
       icon: CheckCircle2,
       color: 'text-emerald-600',
       bg: 'bg-emerald-50',
@@ -32,8 +32,8 @@ export default function StatsOverview({ stats, recordsCount }) {
     },
     {
       label: 'Directory Layout',
-      value: '2 Columns',
-      subtext: `${Math.ceil(recordsCount / 2)} rows (Side-by-Side)`,
+      value: `${columnsCount} Columns`,
+      subtext: `${Math.ceil(recordsCount / (columnsCount || 3))} rows (Contiguous Grid)`,
       icon: Columns2,
       color: 'text-purple-600',
       bg: 'bg-purple-50',

@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Header from './components/Header';
 import StatsOverview from './components/StatsOverview';
+import DuplicateManager from './components/DuplicateManager';
 import FileUpload from './components/FileUpload';
 import ColumnSelector from './components/ColumnSelector';
 import SettingsBar from './components/SettingsBar';
 import DirectoryPreview from './components/DirectoryPreview';
 import RecordModal from './components/RecordModal';
 import { parseExcelData, parseRawTextData } from './utils/parser';
+import { analyzeDuplicates } from './utils/duplicateUtils';
 import {
   generateDirectoryExcel,
   generateStructuredExcel,
@@ -21,29 +23,43 @@ import {
 import {
   SAMPLE_RECORDS,
   STUDENT_SAMPLE_COLUMNS,
-  STUDENT_SAMPLE_RECORDS
+  STUDENT_SAMPLE_WITH_DUPLICATES,
 } from './utils/sampleData';
-import { Sparkles, FileSpreadsheet, CheckCircle2, ShieldCheck, Printer, Table, BookOpen, Layers, LayoutGrid, Columns, Sliders } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 export default function App() {
-  // Start with the student scenario data as demo default
+  // Start with the student scenario data containing sample duplicates to demonstrate ON/OFF feature
   const [columns, setColumns] = useState(STUDENT_SAMPLE_COLUMNS);
   const [selectedColumns, setSelectedColumns] = useState(['Name', 'CGPA']);
-  const [tableData, setTableData] = useState(STUDENT_SAMPLE_RECORDS);
-  const [records, setRecords] = useState(STUDENT_SAMPLE_RECORDS);
-  
-  const [stats, setStats] = useState({
-    totalRaw: STUDENT_SAMPLE_RECORDS.length,
-    duplicatesRemoved: 0,
-    formattedCount: STUDENT_SAMPLE_RECORDS.length,
-    totalColumns: STUDENT_SAMPLE_COLUMNS.length,
-  });
+  const [rawDataset, setRawDataset] = useState(STUDENT_SAMPLE_WITH_DUPLICATES);
+  const [removeDuplicates, setRemoveDuplicates] = useState(true);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeModalRecord, setActiveModalRecord] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState('Student_Records');
+
+  // Dynamic duplicate analysis based on current raw dataset & columns
+  const duplicateAnalysis = useMemo(() => {
+    return analyzeDuplicates(rawDataset, columns);
+  }, [rawDataset, columns]);
+
+  // Active dataset passed to preview, column extractors, and export engines
+  const activeDataSource = useMemo(() => {
+    return removeDuplicates ? duplicateAnalysis.uniqueRecords : duplicateAnalysis.rawRecords;
+  }, [removeDuplicates, duplicateAnalysis]);
+
+  // Computed live stats
+  const computedStats = useMemo(() => {
+    return {
+      totalRaw: duplicateAnalysis.totalRaw,
+      duplicatesRemoved: removeDuplicates ? duplicateAnalysis.duplicateCount : 0,
+      duplicateCount: duplicateAnalysis.duplicateCount,
+      formattedCount: activeDataSource.length,
+      totalColumns: columns.length,
+    };
+  }, [duplicateAnalysis, removeDuplicates, activeDataSource.length, columns.length]);
 
   // Styling options
   const [options, setOptions] = useState({
@@ -69,13 +85,12 @@ export default function App() {
     setUploadedFileName(baseName);
     try {
       const result = await parseExcelData(file);
-      if ((result.tableData && result.tableData.length > 0) || (result.records && result.records.length > 0)) {
+      const incomingRaw = result.rawTableData || result.rawRecords || result.tableData || result.records || [];
+      if (incomingRaw.length > 0) {
         const detectedCols = result.columns || [];
         setColumns(detectedCols);
         setSelectedColumns(detectedCols);
-        setTableData(result.tableData || result.records);
-        setRecords(result.records);
-        setStats(result.stats);
+        setRawDataset(incomingRaw);
       } else {
         alert('Could not find valid tabular records in the uploaded file. Please verify contents.');
       }
@@ -92,13 +107,12 @@ export default function App() {
     setIsProcessing(true);
     try {
       const result = parseRawTextData(text);
-      if ((result.tableData && result.tableData.length > 0) || (result.records && result.records.length > 0)) {
+      const incomingRaw = result.rawTableData || result.rawRecords || result.tableData || result.records || [];
+      if (incomingRaw.length > 0) {
         const detectedCols = result.columns || [];
         setColumns(detectedCols);
         setSelectedColumns(detectedCols);
-        setTableData(result.tableData || result.records);
-        setRecords(result.records);
-        setStats(result.stats);
+        setRawDataset(incomingRaw);
       } else {
         alert('Could not detect records in pasted text. Make sure each record has rows and columns.');
       }
@@ -113,15 +127,8 @@ export default function App() {
   const handleStudentSampleLoad = () => {
     setColumns(STUDENT_SAMPLE_COLUMNS);
     setSelectedColumns(['Name', 'CGPA']);
-    setTableData(STUDENT_SAMPLE_RECORDS);
-    setRecords(STUDENT_SAMPLE_RECORDS);
+    setRawDataset(STUDENT_SAMPLE_WITH_DUPLICATES);
     setUploadedFileName('Student_Data');
-    setStats({
-      totalRaw: STUDENT_SAMPLE_RECORDS.length,
-      duplicatesRemoved: 0,
-      formattedCount: STUDENT_SAMPLE_RECORDS.length,
-      totalColumns: STUDENT_SAMPLE_COLUMNS.length,
-    });
   };
 
   // Load hospital & clinic sample data
@@ -129,8 +136,7 @@ export default function App() {
     const dirCols = ['Name', 'Address', 'Phone Number'];
     setColumns(dirCols);
     setSelectedColumns(dirCols);
-    setRecords(SAMPLE_RECORDS);
-    setTableData(SAMPLE_RECORDS.map(r => ({
+    setRawDataset(SAMPLE_RECORDS.map(r => ({
       id: r.id,
       Name: r.name,
       Address: r.address,
@@ -138,21 +144,13 @@ export default function App() {
       ...r
     })));
     setUploadedFileName('Hospital_Directory');
-    setStats({
-      totalRaw: SAMPLE_RECORDS.length,
-      duplicatesRemoved: 0,
-      formattedCount: SAMPLE_RECORDS.length,
-      totalColumns: dirCols.length,
-    });
   };
 
   // Reset / Clear
   const handleReset = () => {
     setColumns([]);
     setSelectedColumns([]);
-    setTableData([]);
-    setRecords([]);
-    setStats({ totalRaw: 0, duplicatesRemoved: 0, formattedCount: 0, totalColumns: 0 });
+    setRawDataset([]);
   };
 
   // Add / Edit record
@@ -168,27 +166,22 @@ export default function App() {
 
   const handleSaveRecord = (recordData) => {
     if (activeModalRecord) {
-      setRecords(prev => prev.map(r => (r.id === recordData.id ? recordData : r)));
-      setTableData(prev => prev.map(r => (r.id === recordData.id ? recordData : r)));
+      setRawDataset(prev => prev.map(r => (r.id === recordData.id ? recordData : r)));
     } else {
-      setRecords(prev => [recordData, ...prev]);
-      setTableData(prev => [recordData, ...prev]);
+      setRawDataset(prev => [recordData, ...prev]);
     }
   };
 
   const handleDeleteRecord = (id) => {
-    setRecords(prev => prev.filter(r => r.id !== id));
-    setTableData(prev => prev.filter(r => r.id !== id));
+    setRawDataset(prev => prev.filter(r => r.id !== id));
   };
 
-  // Export handlers with selectedColumns
+  // Export handlers with selectedColumns and activeDataSource
   const exportOptions = {
     ...options,
     uploadedFileName,
     selectedColumns,
   };
-
-  const activeDataSource = tableData.length > 0 ? tableData : records;
 
   const handleGenerateDirectoryExcel = async () => {
     setIsGenerating(true);
@@ -282,12 +275,23 @@ export default function App() {
         </div>
 
         {/* Column Selection & Dashboard Controls */}
-        {activeDataSource.length > 0 && (
+        {rawDataset.length > 0 && (
           <>
             <div className="no-print">
               <StatsOverview
-                stats={stats}
+                stats={computedStats}
                 recordsCount={activeDataSource.length}
+                columnsCount={options.columnsCount}
+                removeDuplicates={removeDuplicates}
+              />
+
+              {/* DUPLICATE DATA FEATURE — ON/OFF CONTROL & AUDIT TABLE */}
+              <DuplicateManager
+                removeDuplicates={removeDuplicates}
+                onToggleRemoveDuplicates={setRemoveDuplicates}
+                duplicateAnalysis={duplicateAnalysis}
+                columns={columns}
+                uploadedFileName={uploadedFileName}
               />
 
               {/* DEDICATED COLUMN SELECTION COMPONENT */}
@@ -312,7 +316,7 @@ export default function App() {
 
             {/* Interactive Live Preview & Multi-Format Export */}
             <DirectoryPreview
-              records={records}
+              records={activeDataSource}
               tableData={activeDataSource}
               columns={columns}
               selectedColumns={selectedColumns}
@@ -326,6 +330,7 @@ export default function App() {
               onDeleteRecord={handleDeleteRecord}
               onAddNewRecord={handleOpenAddModal}
               options={options}
+              duplicateAnalysis={duplicateAnalysis}
             />
           </>
         )}
@@ -349,4 +354,3 @@ export default function App() {
     </div>
   );
 }
-

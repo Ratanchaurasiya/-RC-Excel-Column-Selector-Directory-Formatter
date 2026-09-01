@@ -20,7 +20,8 @@ export default function DirectoryPreview({
   onEditRecord,
   onDeleteRecord,
   onAddNewRecord,
-  options
+  options,
+  duplicateAnalysis,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isExporting, setIsExporting] = useState(false);
@@ -50,12 +51,12 @@ export default function DirectoryPreview({
       return val !== undefined && val !== null && String(val).toLowerCase().includes(term);
     });
 
-    return (
-      inCols ||
-      (r.name && String(r.name).toLowerCase().includes(term)) ||
-      (r.address && String(r.address).toLowerCase().includes(term)) ||
-      (r.phone && String(r.phone).toLowerCase().includes(term))
-    );
+    // Check basic fields
+    const inBasic = (r.name && r.name.toLowerCase().includes(term)) ||
+                    (r.address && r.address.toLowerCase().includes(term)) ||
+                    (r.phone && r.phone.toLowerCase().includes(term));
+
+    return inCols || inBasic;
   });
 
 
@@ -63,37 +64,14 @@ export default function DirectoryPreview({
   const nameColor = options.nameColor || '#0F172A';
   const addressColor = options.addressColor || '#334155';
   const phoneColor = options.phoneColor || '#0F172A';
-  const borderColor = options.borderColor || '#94A3B8';
+  const borderColor = options.borderColor || '#334155';
 
-  // Pagination calculation
+  // Calculate pagination
   const effectivePageSize = pageSize === 'all' ? filteredRecords.length : Number(pageSize);
-  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / effectivePageSize));
-  const validPage = Math.min(currentPage, totalPages);
-  
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / (effectivePageSize || 1)));
+  const validPage = Math.min(Math.max(1, currentPage), totalPages);
   const startIndex = (validPage - 1) * effectivePageSize;
   const pageRecords = filteredRecords.slice(startIndex, startIndex + effectivePageSize);
-
-  const triggerExport = async (exportFn, typeName) => {
-    setIsExporting(true);
-    setShowExportMenu(false);
-    try {
-      await exportFn();
-      confetti({
-        particleCount: 75,
-        spread: 60,
-        origin: { y: 0.8 },
-        colors: ['#059669', '#10b981', '#34d399', '#0284c7']
-      });
-    } catch (err) {
-      alert('Error exporting ' + typeName + ': ' + err.message);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const handleBrowserPrint = () => {
-    window.print();
-  };
 
   const copyToClipboard = (text, id) => {
     navigator.clipboard.writeText(text);
@@ -101,37 +79,60 @@ export default function DirectoryPreview({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const triggerExport = async (exportFn, typeName) => {
+    setIsExporting(true);
+    try {
+      await exportFn();
+      confetti({
+        particleCount: 80,
+        spread: 60,
+        origin: { y: 0.85 }
+      });
+    } catch (err) {
+      console.error(err);
+      alert(`Export failed: ${err.message}`);
+    } finally {
+      setIsExporting(false);
+      setShowExportMenu(false);
+    }
+  };
+
+  const handleBrowserPrint = () => {
+    window.print();
+  };
+
+  const duplicateCount = duplicateAnalysis?.duplicateCount || 0;
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-12">
-      {/* Header bar */}
-      <div className="p-4 sm:p-6 border-b border-slate-200 bg-slate-50/70 flex flex-col lg:flex-row lg:items-center justify-between gap-4 no-print">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+      {/* Header Bar */}
+      <div className="p-4 sm:p-6 bg-slate-50/80 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <h2 className="text-base sm:text-lg font-bold text-slate-900">
-              {activeView === 'structured'
-                ? `Extracted Table Preview • ${activeCols.length} Selected Columns`
-                : `Live Preview • ${columnsCount} Columns Per Page`}
+              Interactive Preview &amp; Multi-Format Export
             </h2>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-              {filteredRecords.length} {filteredRecords.length === 1 ? 'Row' : 'Rows'}
+            <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
+              {filteredRecords.length} Active Records
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-200/70 text-slate-700">
-              {activeCols.length} of {columns.length || activeCols.length} Columns Included
-            </span>
+            {duplicateCount > 0 && (
+              <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-0.5 rounded-full border border-amber-200">
+                {duplicateCount} Duplicates
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            {activeView === 'structured'
-              ? `Previewing extracted data with chosen columns: ${activeCols.slice(0, 4).join(', ')}${activeCols.length > 4 ? ` +${activeCols.length - 4} more` : ''}`
-              : 'Real-time multi-column directory card preview with custom font colors & box borders.'}
+            Real-time preview formatted with your chosen columns ({activeCols.join(', ')}).
           </p>
         </div>
 
-        {/* View Switcher */}
+        {/* View Switcher Tabs */}
         <div className="flex items-center bg-slate-200/80 p-1 rounded-xl">
           <button
-            onClick={() => setActiveView('structured')}
+            onClick={() => setActiveView('table')}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeView === 'structured'
+              activeView === 'table'
                 ? 'bg-white text-emerald-800 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -150,6 +151,19 @@ export default function DirectoryPreview({
             <Columns2 className="w-3.5 h-3.5 text-emerald-600" />
             {columnsCount}-Col Directory Cards
           </button>
+          {duplicateCount > 0 && (
+            <button
+              onClick={() => setActiveView('duplicates')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeView === 'duplicates'
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : 'text-amber-800 hover:bg-amber-100/60'
+              }`}
+            >
+              <Copy className="w-3.5 h-3.5" />
+              Duplicate Values ({duplicateCount})
+            </button>
+          )}
         </div>
       </div>
 
@@ -469,6 +483,78 @@ export default function DirectoryPreview({
               </div>
             )}
           </div>
+        </div>
+      ) : activeView === 'duplicates' ? (
+        /* DUPLICATE RECORDS ONLY VIEW */
+        <div className="overflow-x-auto">
+          <div className="bg-amber-50/70 p-3 border-b border-amber-200 text-xs text-amber-900 flex items-center justify-between">
+            <span className="font-bold flex items-center gap-1.5">
+              <Copy className="w-3.5 h-3.5 text-amber-600" />
+              Showing {duplicateAnalysis?.duplicateCount || 0} Detected Duplicate Records
+            </span>
+            <span className="text-[11px] text-amber-700">
+              Comparing duplicate row values against original entries
+            </span>
+          </div>
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-amber-900 text-white font-semibold">
+                <th className="py-3 px-4 w-16 text-center border-r border-amber-800">Dup Row</th>
+                <th className="py-3 px-4 border-r border-amber-800">Duplicate Record Content</th>
+                <th className="py-3 px-4 border-r border-amber-800">Detection Reason</th>
+                <th className="py-3 px-4 border-r border-amber-800">Matched Original Row</th>
+                <th className="py-3 px-4 text-center">Matched Fields</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-amber-100">
+              {(duplicateAnalysis?.duplicateItems || []).map((item, idx) => {
+                const dRec = item.duplicateRecord || {};
+                const oRec = item.originalRecord || {};
+                const dName = dRec.name || dRec.Name || Object.values(dRec)[0] || 'Unnamed';
+                const dPhone = dRec.phone || dRec['Phone Number'] || dRec['Contact No.'] || '';
+                const dAddr = dRec.address || dRec.Address || '';
+                const oName = oRec.name || oRec.Name || Object.values(oRec)[0] || 'Unnamed';
+                const oPhone = oRec.phone || oRec['Phone Number'] || oRec['Contact No.'] || '';
+
+                return (
+                  <tr key={item.id || idx} className="hover:bg-amber-50/60 bg-white">
+                    <td className="py-3 px-4 text-center font-mono font-bold text-amber-900 bg-amber-50 border-r border-slate-200">
+                      #{item.duplicateIndex}
+                    </td>
+                    <td className="py-3 px-4 border-r border-slate-200">
+                      <div className="font-bold text-slate-900">{dName}</div>
+                      {dAddr && <div className="text-[11px] text-slate-500">{dAddr}</div>}
+                      {dPhone && <div className="text-[11px] font-mono font-semibold text-slate-700">{dPhone}</div>}
+                    </td>
+                    <td className="py-3 px-4 border-r border-slate-200">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                        {item.matchReason}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 border-r border-slate-200">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-200">
+                          Row #{item.originalIndex}
+                        </span>
+                        <span className="text-slate-700 font-medium">
+                          {oName} {oPhone ? `(${oPhone})` : ''}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <div className="flex flex-wrap items-center justify-center gap-1">
+                        {(item.matchedFields || []).map(f => (
+                          <span key={f} className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-red-100 text-red-800 border border-red-200">
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       ) : (
         /* STRUCTURED TABLE VIEW WITH DYNAMIC SELECTED COLUMNS */
