@@ -19,6 +19,56 @@ const BUSINESS_SUFFIX_REGEX = /\b(?:hospital|icu|pharmacy|clinic|centre|center|l
 const ADDRESS_KEYWORDS_REGEX = /\b(?:floor|road|rd|opp|opposite|near|nr|b\/s|beside|behind|bungalows|bunglows|square|arcade|eminence|complex|mall|cross road|cross roads|sola|science city|ahmedabad|gujarat|india|street|lane|nagar|society|soc|flat|residency|tower|towers|chamber|chambers|sector|block|shop no|plot no|pin|pincode|3800\d{2})\b/i;
 
 /**
+ * Cleans and sanitizes strings, removing legacy font artifacts, ANSI mojibake, and control characters.
+ */
+export function sanitizeText(str) {
+  if (str === null || str === undefined) return '';
+  let text = String(str);
+
+  // 1. Remove non-printable control characters
+  text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+
+  // 2. Normalize whitespace and non-breaking spaces
+  text = text.replace(/[\u00A0\u1680\u180E\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, ' ');
+
+  // 3. Regex matching legacy 8-bit regional font encoding artifacts:
+  const legacyFontSymbolsRegex = /[•¾À¯µ¡ÍË—®°šÁ¶¦Ç¼½¾¿ÂÃÄÅÆÈÉÊÌÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ\^~±§¤¥¢]+/g;
+
+  // Clean brackets containing legacy mojibake symbols
+  text = text.replace(/\(\s*([^)]*?)\s*\)/g, function(match, inside) {
+    if (legacyFontSymbolsRegex.test(inside)) {
+      const cleanedInside = inside.replace(legacyFontSymbolsRegex, '').replace(/[\s,\-\.\/]+/g, ' ').trim();
+      if (cleanedInside.length <= 1) {
+        return '';
+      }
+      return ' (' + cleanedInside + ')';
+    }
+    return match;
+  });
+
+  // Strip remaining stray legacy symbols
+  text = text.replace(legacyFontSymbolsRegex, ' ');
+
+  // Clean unclosed trailing brackets with junk e.g. ( , \s*
+  text = text.replace(/\(\s*[^)]*$/g, '');
+  text = text.replace(/\(\s*\)/g, '');
+
+  // Clean extra spaces
+  text = text.replace(/\s{2,}/g, ' ').trim();
+
+  return text;
+}
+
+/**
+ * Checks if a column name represents an index / serial number.
+ */
+export function isIndexColumn(colName) {
+  if (!colName) return false;
+  const clean = String(colName).trim().toLowerCase();
+  return /^(?:sr\.?\s*no\.?|sr|s\.?\s*no\.?|sno|serial\s*no\.?|serial|id|no\.?|#|index|sl\.?\s*no\.?|row|row\s*no\.?)$/i.test(clean);
+}
+
+/**
  * Checks if a string looks primarily like a phone number.
  */
 export function isPhoneNumber(str) {
@@ -103,8 +153,8 @@ export function cleanAddress(lines) {
   const arr = Array.isArray(lines) ? lines : [lines];
   
   const cleanedParts = arr
-    .map(part => (part === null || part === undefined ? '' : String(part).trim()))
-    .filter(part => part.length > 0 && !isPhoneNumber(part) && !isDocumentTitleRow(part));
+    .map(part => (part === null || part === undefined ? '' : sanitizeText(String(part).trim())))
+    .filter(part => part.length > 0 && !isPhoneNumber(part) && !isDocumentTitleRow(part) && !isSerialNumber(part));
 
   let joined = cleanedParts.join(', ');
   
@@ -122,7 +172,7 @@ export function cleanAddress(lines) {
  */
 export function cleanName(name) {
   if (!name) return '';
-  let str = String(name).trim();
+  let str = sanitizeText(String(name).trim());
   str = str.replace(/^(?:#|\b\d{1,4}[\.\)\-\:]\s*)/, '').trim();
   return str;
 }
@@ -595,7 +645,7 @@ export function extractTabularColumnsAndRows(sheetData) {
     let rowHasData = false;
     for (let c = 0; c < maxCols; c++) {
       const colName = columns[c];
-      const val = row[c] !== undefined && row[c] !== null ? String(row[c]).trim() : '';
+      const val = row[c] !== undefined && row[c] !== null ? sanitizeText(String(row[c]).trim()) : '';
       rowObj[colName] = val;
       if (val) rowHasData = true;
     }
@@ -603,9 +653,10 @@ export function extractTabularColumnsAndRows(sheetData) {
     if (rowHasData) {
       const colKeys = Object.keys(rowObj).filter(k => k !== 'id');
       
-      // Auto-detect standard fields if available
-      const nameKey = colKeys.find(k => /^(?:name|person|business|hospital|doctor|student|full name)$/i.test(k)) ||
-                      colKeys.find(k => /name/i.test(k)) ||
+      // Auto-detect standard fields if available (avoiding index columns)
+      const nameKey = colKeys.find(k => /^(?:name|person|business|hospital|doctor|student|full name|title)$/i.test(k)) ||
+                      colKeys.find(k => !isIndexColumn(k) && /name/i.test(k)) ||
+                      colKeys.find(k => !isIndexColumn(k)) ||
                       colKeys[0];
       const phoneKey = colKeys.find(k => /phone|mobile|contact|cell|tel|mob/i.test(k));
       const addrKey = colKeys.find(k => /address|location|street|city|district/i.test(k));
@@ -628,7 +679,7 @@ export function extractTabularColumnsAndRows(sheetData) {
 
       const addrParts = [];
       for (const k of colKeys) {
-        if (k !== nameKey && rowObj[k]) {
+        if (k !== nameKey && !isIndexColumn(k) && rowObj[k]) {
           const val = String(rowObj[k]).trim();
           if (recPhone && cleanPhoneNumber(val) === recPhone) {
             continue;

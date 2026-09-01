@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { hexToArgb } from './colorUtils.js';
+import { sanitizeText, isIndexColumn } from './parser.js';
 
 /**
  * Maps standard page sizes to Excel paperSize IDs.
@@ -92,12 +93,14 @@ function createDirectoryRichText(record, options = {}) {
   });
 
   if (selectedColumns && selectedColumns.length > 0) {
-    // Extract values ONLY for selected columns
+    // Extract values ONLY for selected columns (filtering out pure index columns if other columns exist)
+    const activeCols = selectedColumns.length > 1 ? selectedColumns.filter(c => !isIndexColumn(c)) : selectedColumns;
     const selectedEntries = [];
-    selectedColumns.forEach((colName) => {
-      const val = record[colName] !== undefined && record[colName] !== null
+    activeCols.forEach((colName) => {
+      const rawVal = record[colName] !== undefined && record[colName] !== null
         ? String(record[colName]).trim()
         : (record[colName.toLowerCase()] !== undefined && record[colName.toLowerCase()] !== null ? String(record[colName.toLowerCase()]).trim() : '');
+      const val = sanitizeText(rawVal);
       if (val) {
         selectedEntries.push({ colName, val });
       }

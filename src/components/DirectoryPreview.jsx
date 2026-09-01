@@ -6,6 +6,7 @@ import {
   UploadCloud, Loader2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { sanitizeText, isIndexColumn } from '../utils/parser.js';
 
 export default function DirectoryPreview({
   records,
@@ -435,19 +436,24 @@ export default function DirectoryPreview({
 
                   {(() => {
                     const fields = [];
-                    if (selectedColumns && selectedColumns.length > 0) {
-                      selectedColumns.forEach(colName => {
-                        const val = record[colName] !== undefined && record[colName] !== null
+                    const activeCols = selectedColumns && selectedColumns.length > 1
+                      ? selectedColumns.filter(c => !isIndexColumn(c))
+                      : (selectedColumns || []);
+
+                    if (activeCols.length > 0) {
+                      activeCols.forEach(colName => {
+                        const rawVal = record[colName] !== undefined && record[colName] !== null
                           ? String(record[colName]).trim()
                           : (record[colName.toLowerCase()] !== undefined && record[colName.toLowerCase()] !== null ? String(record[colName.toLowerCase()]).trim() : '');
+                        const val = sanitizeText(rawVal);
                         if (val) {
                           fields.push({ colName, val });
                         }
                       });
                     } else {
-                      if (record.name || record.Name) fields.push({ colName: 'Name', val: record.name || record.Name });
-                      if (record.address || record.Address) fields.push({ colName: 'Address', val: record.address || record.Address });
-                      if (record.phone || record['Contact No.'] || record['Phone Number']) fields.push({ colName: 'Phone', val: record.phone || record['Contact No.'] || record['Phone Number'] });
+                      if (record.name || record.Name) fields.push({ colName: 'Name', val: sanitizeText(record.name || record.Name) });
+                      if (record.address || record.Address) fields.push({ colName: 'Address', val: sanitizeText(record.address || record.Address) });
+                      if (record.phone || record['Contact No.'] || record['Phone Number']) fields.push({ colName: 'Phone', val: sanitizeText(record.phone || record['Contact No.'] || record['Phone Number']) });
                     }
 
                     if (fields.length === 0) {

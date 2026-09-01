@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { hexToRgb } from './colorUtils.js';
+import { sanitizeText, isIndexColumn } from './parser.js';
 
 /**
  * Generates a Multi-Column Directory PDF on A3, A4, etc. with custom font colors and box borders.
@@ -97,18 +98,20 @@ export async function generateDirectoryPDF(records, options = {}) {
       const fieldEntries = [];
 
       if (selectedColumns && selectedColumns.length > 0) {
-        selectedColumns.forEach((colName) => {
-          const val = rec[colName] !== undefined && rec[colName] !== null
+        const activeCols = selectedColumns.length > 1 ? selectedColumns.filter(c => !isIndexColumn(c)) : selectedColumns;
+        activeCols.forEach((colName) => {
+          const rawVal = rec[colName] !== undefined && rec[colName] !== null
             ? String(rec[colName]).trim()
             : (rec[colName.toLowerCase()] !== undefined && rec[colName.toLowerCase()] !== null ? String(rec[colName.toLowerCase()]).trim() : '');
+          const val = sanitizeText(rawVal);
           if (val) {
             fieldEntries.push({ colName, val });
           }
         });
       } else {
-        if (rec.name) fieldEntries.push({ colName: 'Name', val: rec.name });
-        if (rec.address) fieldEntries.push({ colName: 'Address', val: rec.address });
-        if (rec.phone) fieldEntries.push({ colName: 'Phone', val: rec.phone });
+        if (rec.name) fieldEntries.push({ colName: 'Name', val: sanitizeText(rec.name) });
+        if (rec.address) fieldEntries.push({ colName: 'Address', val: sanitizeText(rec.address) });
+        if (rec.phone) fieldEntries.push({ colName: 'Phone', val: sanitizeText(rec.phone) });
       }
 
       let cardContentH = 0;
@@ -317,7 +320,7 @@ export async function generateStructuredPDF(records, options = {}) {
     doc.setFontSize(8);
 
     const cellLinesList = activeCols.map(col => {
-      const val = String(rec[col] ?? '');
+      const val = sanitizeText(String(rec[col] ?? ''));
       return doc.splitTextToSize(val, colWidth - 4);
     });
 
