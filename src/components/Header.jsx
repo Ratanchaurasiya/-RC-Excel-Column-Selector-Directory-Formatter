@@ -1,12 +1,22 @@
-import React from 'react';
-import { FileSpreadsheet, Download, Sparkles, RefreshCw, Layers, CheckSquare } from 'lucide-react';
+import React, { useRef } from 'react';
+import { FileSpreadsheet, Download, Sparkles, RefreshCw, UploadCloud } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { generateStudentSampleWorkbook, STUDENT_SAMPLE_COLUMNS, STUDENT_SAMPLE_RECORDS } from '../utils/sampleData';
+import { generateStudentSampleWorkbook } from '../utils/sampleData';
 
-export default function Header({ onReset, onSampleLoad, onStudentSampleLoad, totalRecords }) {
+export default function Header({ onReset, onSampleLoad, onStudentSampleLoad, onFileUpload, totalRecords }) {
+  const headerFileInputRef = useRef(null);
+
   const handleDownloadSampleInput = () => {
     const wb = generateStudentSampleWorkbook(XLSX);
     XLSX.writeFile(wb, 'Student_Records_Sample.xlsx');
+  };
+
+  const handleHeaderFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file && onFileUpload) {
+      await onFileUpload(file);
+    }
   };
 
   return (
@@ -33,9 +43,27 @@ export default function Header({ onReset, onSampleLoad, onStudentSampleLoad, tot
             </div>
           </div>
 
-
           {/* Quick Actions */}
           <div className="flex items-center gap-2.5">
+            {/* Hidden header file input */}
+            <input
+              ref={headerFileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={handleHeaderFileChange}
+              onClick={(e) => { e.target.value = ''; }}
+            />
+
+            <button
+              onClick={() => headerFileInputRef.current?.click()}
+              title="Upload any Excel (.xlsx, .xls, .csv) file without refreshing"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+            >
+              <UploadCloud className="w-3.5 h-3.5 text-emerald-600" />
+              Upload File
+            </button>
+
             <button
               onClick={handleDownloadSampleInput}
               title="Download sample Excel with Name, Contact No, Address, District, CGPA"
@@ -72,4 +100,3 @@ export default function Header({ onReset, onSampleLoad, onStudentSampleLoad, tot
     </header>
   );
 }
-

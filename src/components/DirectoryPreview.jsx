@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Download, Search, Plus, Edit2, Trash2, FileSpreadsheet,
   Printer, Check, Copy, Table, Columns2, ChevronDown, FileText,
-  Layers, FileCode, Sparkles, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
+  Layers, FileCode, Sparkles, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  UploadCloud
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -22,6 +23,8 @@ export default function DirectoryPreview({
   onAddNewRecord,
   options,
   duplicateAnalysis,
+  onFileUpload,
+  uploadedFileName = 'Dataset'
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isExporting, setIsExporting] = useState(false);
@@ -97,14 +100,27 @@ export default function DirectoryPreview({
     }
   };
 
-  const handleBrowserPrint = () => {
-    window.print();
-  };
+  const previewFileInputRef = useRef(null);
 
-  const duplicateCount = duplicateAnalysis?.duplicateCount || 0;
+  const handlePreviewFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file && onFileUpload) {
+      await onFileUpload(file);
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+      {/* Hidden file input for quick direct upload */}
+      <input
+        ref={previewFileInputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+        onChange={handlePreviewFileChange}
+        onClick={(e) => { e.target.value = ''; }}
+      />
       {/* Header Bar */}
       <div className="p-4 sm:p-6 bg-slate-50/80 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -186,6 +202,16 @@ export default function DirectoryPreview({
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Direct File Upload button from Preview */}
+          <button
+            onClick={() => previewFileInputRef.current?.click()}
+            title="Upload a new or different Excel file without refreshing"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors cursor-pointer"
+          >
+            <UploadCloud className="w-3.5 h-3.5 text-emerald-600" />
+            Upload File
+          </button>
+
           <button
             onClick={onAddNewRecord}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl shadow-2xs transition-colors"

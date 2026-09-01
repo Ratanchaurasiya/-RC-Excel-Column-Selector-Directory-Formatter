@@ -224,6 +224,7 @@ export default function App() {
         onReset={handleReset}
         onSampleLoad={handleSampleLoad}
         onStudentSampleLoad={handleStudentSampleLoad}
+        onFileUpload={handleFileUpload}
         totalRecords={activeDataSource.length}
       />
 
@@ -331,6 +332,8 @@ export default function App() {
               onAddNewRecord={handleOpenAddModal}
               options={options}
               duplicateAnalysis={duplicateAnalysis}
+              onFileUpload={handleFileUpload}
+              uploadedFileName={uploadedFileName}
             />
           </>
         )}

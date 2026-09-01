@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileText, ClipboardPaste, ArrowRight, CheckCircle, AlertCircle, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { UploadCloud, FileText, ClipboardPaste, ArrowRight, CheckCircle, AlertCircle, FileSpreadsheet, Loader2, RefreshCw } from 'lucide-react';
 import { RAW_BLOCK_SAMPLE_TEXT } from '../utils/sampleData';
 
 export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) {
@@ -11,8 +11,10 @@ export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) 
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
+    // Always clear input value so uploading the same file again triggers onChange immediately without refreshing
+    e.target.value = '';
     if (!file) return;
-    processSelectedFile(file);
+    await processSelectedFile(file);
   };
 
   const processSelectedFile = async (file) => {
@@ -30,14 +32,18 @@ export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) 
       await onFileUpload(file);
     } catch (err) {
       setErrorMsg(err.message || 'Error processing Excel file. Please verify format.');
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
     e.preventDefault();
     setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processSelectedFile(e.dataTransfer.files[0]);
+      await processSelectedFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -90,9 +96,17 @@ export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) 
 
       <div className="p-6 sm:p-8">
         {errorMsg && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-sm text-red-700">
-            <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
-            <span>{errorMsg}</span>
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-2 text-sm text-red-700">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
+              <span>{errorMsg}</span>
+            </div>
+            <button
+              onClick={() => setErrorMsg('')}
+              className="text-xs text-red-600 hover:underline font-bold px-2 py-1"
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
@@ -102,7 +116,12 @@ export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) 
               onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
               onDragLeave={() => setIsDragOver(false)}
               onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = '';
+                  fileInputRef.current.click();
+                }
+              }}
               className={`border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition-all ${
                 isDragOver
                   ? 'border-emerald-500 bg-emerald-50/50 scale-[0.99]'
@@ -115,6 +134,7 @@ export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) 
                 accept=".xlsx,.xls,.csv"
                 className="hidden"
                 onChange={handleFileChange}
+                onClick={(e) => { e.target.value = ''; }}
               />
 
               <div className="mx-auto w-16 h-16 rounded-2xl bg-emerald-100/80 text-emerald-600 flex items-center justify-center mb-4 shadow-inner">
@@ -129,7 +149,7 @@ export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) 
                 {isProcessing ? 'Processing Excel Records...' : 'Click to upload or drag & drop your Excel file'}
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-                Supports unstructured row blocks, multi-column tables, or raw listings (.xlsx, .xls, .csv)
+                Supports unstructured row blocks, multi-column tables, or raw listings (.xlsx, .xls, .csv) &bull; <strong>Upload anytime without refreshing</strong>
               </p>
 
               <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-600 shadow-xs font-medium">
