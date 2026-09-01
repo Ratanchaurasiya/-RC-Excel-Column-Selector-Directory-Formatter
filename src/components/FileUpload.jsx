@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileText, ClipboardPaste, ArrowRight, CheckCircle, AlertCircle, FileSpreadsheet, Loader2, RefreshCw } from 'lucide-react';
+import { UploadCloud, FileText, ClipboardPaste, ArrowRight, CheckCircle, AlertCircle, FileSpreadsheet, Loader2, Files } from 'lucide-react';
 import { RAW_BLOCK_SAMPLE_TEXT } from '../utils/sampleData';
 
 export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) {
@@ -10,28 +10,29 @@ export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) 
   const fileInputRef = useRef(null);
 
   const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    // Always clear input value so uploading the same file again triggers onChange immediately without refreshing
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
-    if (!file) return;
-    await processSelectedFile(file);
+    if (files.length === 0) return;
+    await processSelectedFiles(files);
   };
 
-  const processSelectedFile = async (file) => {
+  const processSelectedFiles = async (files) => {
     setErrorMsg('');
     const validExts = ['.xlsx', '.xls', '.csv'];
-    const fileName = file.name.toLowerCase();
-    const isValid = validExts.some(ext => fileName.endsWith(ext));
+    const validFiles = files.filter(file => {
+      const fileName = file.name.toLowerCase();
+      return validExts.some(ext => fileName.endsWith(ext));
+    });
 
-    if (!isValid) {
-      setErrorMsg('Please upload a valid Excel (.xlsx, .xls) or CSV file.');
+    if (validFiles.length === 0) {
+      setErrorMsg('Please upload valid Excel (.xlsx, .xls) or CSV files.');
       return;
     }
 
     try {
-      await onFileUpload(file);
+      await onFileUpload(validFiles);
     } catch (err) {
-      setErrorMsg(err.message || 'Error processing Excel file. Please verify format.');
+      setErrorMsg(err.message || 'Error processing Excel files. Please verify format.');
     } finally {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -43,7 +44,8 @@ export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) 
     e.preventDefault();
     setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      await processSelectedFile(e.dataTransfer.files[0]);
+      const files = Array.from(e.dataTransfer.files);
+      await processSelectedFiles(files);
     }
   };
 
@@ -78,7 +80,7 @@ export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) 
           }`}
         >
           <UploadCloud className="w-4 h-4 text-emerald-600" />
-          Upload Excel File
+          Upload Excel File(s)
         </button>
 
         <button
@@ -131,6 +133,7 @@ export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) 
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 accept=".xlsx,.xls,.csv"
                 className="hidden"
                 onChange={handleFileChange}
@@ -141,20 +144,20 @@ export default function FileUpload({ onFileUpload, onTextParse, isProcessing }) 
                 {isProcessing ? (
                   <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
                 ) : (
-                  <FileSpreadsheet className="w-8 h-8" />
+                  <Files className="w-8 h-8" />
                 )}
               </div>
 
               <h3 className="text-base sm:text-lg font-semibold text-slate-800 mb-1">
-                {isProcessing ? 'Processing Excel Records...' : 'Click to upload or drag & drop your Excel file'}
+                {isProcessing ? 'Processing Excel File(s)...' : 'Click to upload or drag & drop single or multiple Excel files'}
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-                Supports unstructured row blocks, multi-column tables, or raw listings (.xlsx, .xls, .csv) &bull; <strong>Upload anytime without refreshing</strong>
+                Supports multiple files at once (.xlsx, .xls, .csv). Each file is processed independently with separate outputs.
               </p>
 
               <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-600 shadow-xs font-medium">
                 <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                Auto-extracts Name, Address &amp; preserves 100% phone leading zeros
+                Batch processing &bull; Multi-file ZIP export &bull; Individual file downloads
               </div>
             </div>
           </div>

@@ -56,7 +56,9 @@ function downloadBlob(blob, filename) {
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
-  setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+  setTimeout(() => {
+    try { window.URL.revokeObjectURL(url); } catch (e) {}
+  }, 60000);
 }
 
 /**
@@ -352,6 +354,9 @@ export async function generateDirectoryExcel(records, options = {}) {
 
 
   const buffer = await workbook.xlsx.writeBuffer();
+  if (options.returnBufferOnly) {
+    return buffer;
+  }
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const baseName = options.uploadedFileName || 'Directory';
   const filename = `${baseName}.xlsx`;
@@ -505,6 +510,9 @@ export async function generateSelectedColumnsExcel(records, options = {}) {
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
+  if (options.returnBufferOnly) {
+    return buffer;
+  }
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const baseName = options.uploadedFileName || 'Extracted_Columns';
   const filename = `${baseName}_selected_columns.xlsx`;

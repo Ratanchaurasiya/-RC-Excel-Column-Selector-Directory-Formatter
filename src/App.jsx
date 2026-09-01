@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import Header from './components/Header';
 import StatsOverview from './components/StatsOverview';
+import BatchFileManager from './components/BatchFileManager';
 import DuplicateManager from './components/DuplicateManager';
 import FileUpload from './components/FileUpload';
 import ColumnSelector from './components/ColumnSelector';
@@ -12,7 +13,6 @@ import { analyzeDuplicates } from './utils/duplicateUtils';
 import {
   generateDirectoryExcel,
   generateStructuredExcel,
-  generateSelectedColumnsExcel,
   generateCombinedExcel,
   exportCSV,
 } from './utils/excelGenerator';
@@ -25,32 +25,63 @@ import {
   STUDENT_SAMPLE_COLUMNS,
   STUDENT_SAMPLE_WITH_DUPLICATES,
 } from './utils/sampleData';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Files, Archive } from 'lucide-react';
+
+const createInitialFile = () => {
+  const fileId = 'initial_student_file';
+  const dupAnalysis = analyzeDuplicates(STUDENT_SAMPLE_WITH_DUPLICATES, STUDENT_SAMPLE_COLUMNS);
+  return {
+    id: fileId,
+    fileName: 'Student_Data.xlsx',
+    status: 'ready',
+    rawDataset: STUDENT_SAMPLE_WITH_DUPLICATES,
+    columns: STUDENT_SAMPLE_COLUMNS,
+    selectedColumns: ['Name', 'CGPA'],
+    removeDuplicates: true,
+    duplicateAnalysis: dupAnalysis,
+  };
+};
 
 export default function App() {
-  // Start with the student scenario data containing sample duplicates to demonstrate ON/OFF feature
-  const [columns, setColumns] = useState(STUDENT_SAMPLE_COLUMNS);
-  const [selectedColumns, setSelectedColumns] = useState(['Name', 'CGPA']);
-  const [rawDataset, setRawDataset] = useState(STUDENT_SAMPLE_WITH_DUPLICATES);
-  const [removeDuplicates, setRemoveDuplicates] = useState(true);
+  const [filesList, setFilesList] = useState([createInitialFile()]);
+  const [activeFileId, setActiveFileId] = useState('initial_student_file');
+  const [globalRemoveDuplicates, setGlobalRemoveDuplicates] = useState(true);
+  const [syncColumnsAcrossBatch, setSyncColumnsAcrossBatch] = useState(true);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeModalRecord, setActiveModalRecord] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [uploadedFileName, setUploadedFileName] = useState('Student_Records');
 
-  // Dynamic duplicate analysis based on current raw dataset & columns
-  const duplicateAnalysis = useMemo(() => {
-    return analyzeDuplicates(rawDataset, columns);
-  }, [rawDataset, columns]);
+  // Active File object
+  const activeFile = useMemo(() => {
+    return filesList.find(f => f.id === activeFileId) || filesList[0] || null;
+  }, [filesList, activeFileId]);
 
-  // Active dataset passed to preview, column extractors, and export engines
+  // Derived state for currently active file
+  const columns = activeFile?.columns || [];
+  const selectedColumns = activeFile?.selectedColumns || activeFile?.columns || [];
+  const rawDataset = activeFile?.rawDataset || [];
+  const removeDuplicates = activeFile ? activeFile.removeDuplicates : true;
+  const duplicateAnalysis = activeFile?.duplicateAnalysis || {
+    rawRecords: [],
+    uniqueRecords: [],
+    duplicateItems: [],
+    totalRaw: 0,
+    duplicateCount: 0,
+    uniqueCount: 0,
+  };
+  const uploadedFileName = activeFile ? activeFile.fileName.replace(/\.[^/.]+$/, '') : 'Dataset';
+
+  // Active dataset for current file (deduplicated or raw depending on removeDuplicates)
   const activeDataSource = useMemo(() => {
-    return removeDuplicates ? duplicateAnalysis.uniqueRecords : duplicateAnalysis.rawRecords;
-  }, [removeDuplicates, duplicateAnalysis]);
+    if (!activeFile) return [];
+    return activeFile.removeDuplicates
+      ? (activeFile.duplicateAnalysis?.uniqueRecords || activeFile.rawDataset || [])
+      : (activeFile.duplicateAnalysis?.rawRecords || activeFile.rawDataset || []);
+  }, [activeFile]);
 
-  // Computed live stats
+  // Computed live stats for active file
   const computedStats = useMemo(() => {
     return {
       totalRaw: duplicateAnalysis.totalRaw,
@@ -78,28 +109,65 @@ export default function App() {
     borderColor: '#334155',
   });
 
-  // Handle file upload (.xlsx, .xls, .csv)
-  const handleFileUpload = async (file) => {
+  // Handle single or multiple file upload (.xlsx, .xls, .csv)
+  const handleFileUpload = async (files) => {
+    const incomingFiles = Array.isArray(files) ? files : [files];
+    if (incomingFiles.length === 0) return;
+
     setIsProcessing(true);
-    const baseName = file.name.replace(/\.[^/.]+$/, '');
-    setUploadedFileName(baseName);
-    try {
-      const result = await parseExcelData(file);
-      const incomingRaw = result.rawTableData || result.rawRecords || result.tableData || result.records || [];
-      if (incomingRaw.length > 0) {
+    const newFileEntries = [];
+
+    for (let i = 0; i < incomingFiles.length; i++) {
+      const file = incomingFiles[i];
+      const fileId = `file_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      
+      try {
+        const result = await parseExcelData(file);
+        const incomingRaw = result.rawTableData || result.rawRecords || result.tableData || result.records || [];
         const detectedCols = result.columns || [];
-        setColumns(detectedCols);
-        setSelectedColumns(detectedCols);
-        setRawDataset(incomingRaw);
-      } else {
-        alert('Could not find valid tabular records in the uploaded file. Please verify contents.');
+        const dAnalysis = analyzeDuplicates(incomingRaw, detectedCols);
+
+        newFileEntries.push({
+          id: fileId,
+          fileName: file.name,
+          status: 'ready',
+          rawDataset: incomingRaw,
+          columns: detectedCols,
+          selectedColumns: detectedCols,
+          removeDuplicates: globalRemoveDuplicates,
+          duplicateAnalysis: dAnalysis,
+        });
+      } catch (err) {
+        console.error(`Error parsing file ${file.name}:`, err);
+        newFileEntries.push({
+          id: fileId,
+          fileName: file.name,
+          status: 'error',
+          errorMessage: err.message || 'Parsing error',
+          rawDataset: [],
+          columns: [],
+          selectedColumns: [],
+          removeDuplicates: globalRemoveDuplicates,
+          duplicateAnalysis: { rawRecords: [], uniqueRecords: [], duplicateItems: [], totalRaw: 0, duplicateCount: 0, uniqueCount: 0 },
+        });
       }
-    } catch (err) {
-      console.error(err);
-      alert('Error parsing Excel: ' + (err.message || 'Unknown error'));
-    } finally {
-      setIsProcessing(false);
     }
+
+    if (newFileEntries.length > 0) {
+      setFilesList(prev => {
+        // If previous only contained the default sample, replace it; otherwise append
+        const isDefaultOnly = prev.length === 1 && prev[0].id === 'initial_student_file';
+        return isDefaultOnly ? newFileEntries : [...prev, ...newFileEntries];
+      });
+
+      // Focus on the first newly added successful file
+      const firstReady = newFileEntries.find(f => f.status === 'ready') || newFileEntries[0];
+      if (firstReady) {
+        setActiveFileId(firstReady.id);
+      }
+    }
+
+    setIsProcessing(false);
   };
 
   // Handle raw pasted text
@@ -110,9 +178,24 @@ export default function App() {
       const incomingRaw = result.rawTableData || result.rawRecords || result.tableData || result.records || [];
       if (incomingRaw.length > 0) {
         const detectedCols = result.columns || [];
-        setColumns(detectedCols);
-        setSelectedColumns(detectedCols);
-        setRawDataset(incomingRaw);
+        const dAnalysis = analyzeDuplicates(incomingRaw, detectedCols);
+        const fileId = `text_batch_${Date.now()}`;
+        const newFileItem = {
+          id: fileId,
+          fileName: 'Pasted_Text_Data.xlsx',
+          status: 'ready',
+          rawDataset: incomingRaw,
+          columns: detectedCols,
+          selectedColumns: detectedCols,
+          removeDuplicates: globalRemoveDuplicates,
+          duplicateAnalysis: dAnalysis,
+        };
+
+        setFilesList(prev => {
+          const isDefaultOnly = prev.length === 1 && prev[0].id === 'initial_student_file';
+          return isDefaultOnly ? [newFileItem] : [...prev, newFileItem];
+        });
+        setActiveFileId(fileId);
       } else {
         alert('Could not detect records in pasted text. Make sure each record has rows and columns.');
       }
@@ -123,37 +206,125 @@ export default function App() {
     }
   };
 
+  // Toggle Global Duplicate ON/OFF (updates all files in batch)
+  const handleToggleGlobalDuplicates = (newState) => {
+    setGlobalRemoveDuplicates(newState);
+    setFilesList(prev => prev.map(f => ({
+      ...f,
+      removeDuplicates: newState
+    })));
+  };
+
+  // Toggle Duplicate ON/OFF for Active File
+  const handleToggleActiveFileDuplicates = (newState) => {
+    if (!activeFileId) return;
+    setFilesList(prev => prev.map(f => {
+      if (f.id === activeFileId) {
+        return { ...f, removeDuplicates: newState };
+      }
+      return f;
+    }));
+  };
+
+  // Update Selected Columns for Active File (and optionally sync across batch)
+  const handleActiveFileColumnSelection = (newSelectedCols) => {
+    if (!activeFileId) return;
+
+    if (syncColumnsAcrossBatch && filesList.length > 1) {
+      // Sync across all files in batch: for each file, select columns that match newSelectedCols (case-insensitive)
+      setFilesList(prev => prev.map(f => {
+        if (f.id === activeFileId) {
+          return { ...f, selectedColumns: newSelectedCols };
+        }
+        // Match existing columns in this file
+        const matchingCols = (f.columns || []).filter(colName => {
+          return newSelectedCols.some(sel => sel.trim().toLowerCase() === colName.trim().toLowerCase());
+        });
+        return {
+          ...f,
+          selectedColumns: matchingCols.length > 0 ? matchingCols : f.selectedColumns
+        };
+      }));
+    } else {
+      // Single active file update
+      setFilesList(prev => prev.map(f => {
+        if (f.id === activeFileId) {
+          return { ...f, selectedColumns: newSelectedCols };
+        }
+        return f;
+      }));
+    }
+  };
+
+  // Explicitly Apply Selected Columns to All Files in Batch
+  const handleApplyColumnsToAllFiles = (colsToApply) => {
+    setFilesList(prev => prev.map(f => {
+      const matchingCols = (f.columns || []).filter(colName => {
+        return colsToApply.some(sel => sel.trim().toLowerCase() === colName.trim().toLowerCase());
+      });
+      return {
+        ...f,
+        selectedColumns: matchingCols.length > 0 ? matchingCols : (f.selectedColumns || f.columns)
+      };
+    }));
+  };
+
+  // Remove a file from batch
+  const handleRemoveFile = (fileIdToRemove) => {
+    setFilesList(prev => {
+      const filtered = prev.filter(f => f.id !== fileIdToRemove);
+      if (activeFileId === fileIdToRemove && filtered.length > 0) {
+        setActiveFileId(filtered[0].id);
+      }
+      return filtered;
+    });
+  };
+
+  // Clear all files
+  const handleClearAllFiles = () => {
+    setFilesList([]);
+    setActiveFileId(null);
+  };
+
   // Load student example dataset with Name & CGPA pre-selected
   const handleStudentSampleLoad = () => {
-    setColumns(STUDENT_SAMPLE_COLUMNS);
-    setSelectedColumns(['Name', 'CGPA']);
-    setRawDataset(STUDENT_SAMPLE_WITH_DUPLICATES);
-    setUploadedFileName('Student_Data');
+    const studentFile = createInitialFile();
+    setFilesList([studentFile]);
+    setActiveFileId(studentFile.id);
   };
 
   // Load hospital & clinic sample data
   const handleSampleLoad = () => {
     const dirCols = ['Name', 'Address', 'Phone Number'];
-    setColumns(dirCols);
-    setSelectedColumns(dirCols);
-    setRawDataset(SAMPLE_RECORDS.map(r => ({
+    const records = SAMPLE_RECORDS.map(r => ({
       id: r.id,
       Name: r.name,
       Address: r.address,
       'Phone Number': r.phone,
       ...r
-    })));
-    setUploadedFileName('Hospital_Directory');
+    }));
+    const dAnalysis = analyzeDuplicates(records, dirCols);
+    const clinicFile = {
+      id: 'clinic_sample_file',
+      fileName: 'Hospital_Clinic_Directory.xlsx',
+      status: 'ready',
+      rawDataset: records,
+      columns: dirCols,
+      selectedColumns: dirCols,
+      removeDuplicates: true,
+      duplicateAnalysis: dAnalysis,
+    };
+    setFilesList([clinicFile]);
+    setActiveFileId(clinicFile.id);
   };
 
   // Reset / Clear
   const handleReset = () => {
-    setColumns([]);
-    setSelectedColumns([]);
-    setRawDataset([]);
+    setFilesList([]);
+    setActiveFileId(null);
   };
 
-  // Add / Edit record
+  // Add / Edit record for active file
   const handleOpenAddModal = () => {
     setActiveModalRecord(null);
     setIsModalOpen(true);
@@ -165,15 +336,40 @@ export default function App() {
   };
 
   const handleSaveRecord = (recordData) => {
-    if (activeModalRecord) {
-      setRawDataset(prev => prev.map(r => (r.id === recordData.id ? recordData : r)));
-    } else {
-      setRawDataset(prev => [recordData, ...prev]);
-    }
+    if (!activeFileId) return;
+    setFilesList(prev => prev.map(f => {
+      if (f.id === activeFileId) {
+        let updatedRaw;
+        if (activeModalRecord) {
+          updatedRaw = f.rawDataset.map(r => (r.id === recordData.id ? recordData : r));
+        } else {
+          updatedRaw = [recordData, ...f.rawDataset];
+        }
+        const updatedDAnalysis = analyzeDuplicates(updatedRaw, f.columns);
+        return {
+          ...f,
+          rawDataset: updatedRaw,
+          duplicateAnalysis: updatedDAnalysis,
+        };
+      }
+      return f;
+    }));
   };
 
   const handleDeleteRecord = (id) => {
-    setRawDataset(prev => prev.filter(r => r.id !== id));
+    if (!activeFileId) return;
+    setFilesList(prev => prev.map(f => {
+      if (f.id === activeFileId) {
+        const updatedRaw = f.rawDataset.filter(r => r.id !== id);
+        const updatedDAnalysis = analyzeDuplicates(updatedRaw, f.columns);
+        return {
+          ...f,
+          rawDataset: updatedRaw,
+          duplicateAnalysis: updatedDAnalysis,
+        };
+      }
+      return f;
+    }));
   };
 
   // Export handlers with selectedColumns and activeDataSource
@@ -237,15 +433,15 @@ export default function App() {
           <div className="relative z-10 max-w-3xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold mb-3">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              Selective Column Extraction &bull; Dynamic Multi-Column Excel &amp; PDF Generator
+              Multi-File Batch Processing &bull; Selective Column Extraction &bull; ZIP Export
             </div>
             
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mb-2">
-              Select Required Columns &amp; Export Excel
+              Batch Process &amp; Format Multiple Excel Files
             </h1>
             
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-4">
-              Upload any Excel file containing multiple columns (e.g. <em>Name, Contact No., Address, District, CGPA</em>). Select only the columns you want (e.g. <strong>Name &amp; CGPA</strong>) to generate a clean, customized Excel file with zero extra columns.
+              Upload multiple Excel files at once. Each file is processed independently with separate column customization, duplicate detection, and output generation. Download individual files or bundle all into a single <strong>ZIP archive</strong>.
             </p>
 
             <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -266,7 +462,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Upload Section */}
+        {/* Upload Section (Always available for batch drag & drop) */}
         <div className="no-print">
           <FileUpload
             onFileUpload={handleFileUpload}
@@ -275,8 +471,24 @@ export default function App() {
           />
         </div>
 
-        {/* Column Selection & Dashboard Controls */}
-        {rawDataset.length > 0 && (
+        {/* BATCH MULTI-FILE WORKSPACE & FILE LIST */}
+        {filesList.length > 0 && (
+          <BatchFileManager
+            filesList={filesList}
+            activeFileId={activeFileId}
+            onSelectActiveFile={setActiveFileId}
+            onRemoveFile={handleRemoveFile}
+            onClearAllFiles={handleClearAllFiles}
+            onUploadMoreFiles={handleFileUpload}
+            onToggleGlobalDuplicates={handleToggleGlobalDuplicates}
+            globalRemoveDuplicates={globalRemoveDuplicates}
+            options={options}
+            isBatchProcessing={isProcessing}
+          />
+        )}
+
+        {/* Column Selection & Active File Dashboard Controls */}
+        {activeFile && rawDataset.length > 0 && (
           <>
             <div className="no-print">
               <StatsOverview
@@ -286,10 +498,10 @@ export default function App() {
                 removeDuplicates={removeDuplicates}
               />
 
-              {/* DUPLICATE DATA FEATURE — ON/OFF CONTROL & AUDIT TABLE */}
+              {/* DUPLICATE DATA FEATURE — ON/OFF CONTROL & AUDIT TABLE FOR ACTIVE FILE */}
               <DuplicateManager
                 removeDuplicates={removeDuplicates}
-                onToggleRemoveDuplicates={setRemoveDuplicates}
+                onToggleRemoveDuplicates={handleToggleActiveFileDuplicates}
                 duplicateAnalysis={duplicateAnalysis}
                 columns={columns}
                 uploadedFileName={uploadedFileName}
@@ -299,10 +511,14 @@ export default function App() {
               <ColumnSelector
                 columns={columns}
                 selectedColumns={selectedColumns}
-                onSelectionChange={setSelectedColumns}
+                onSelectionChange={handleActiveFileColumnSelection}
                 tableData={activeDataSource}
                 onGenerateExcel={handleGenerateStructuredExcel}
                 isGenerating={isGenerating}
+                totalBatchFiles={filesList.length}
+                syncColumnsAcrossBatch={syncColumnsAcrossBatch}
+                onToggleSyncColumns={setSyncColumnsAcrossBatch}
+                onApplyToAllFiles={handleApplyColumnsToAllFiles}
               />
 
               {/* Optional Settings & Font Color Customizer */}
@@ -347,13 +563,6 @@ export default function App() {
         record={activeModalRecord}
         columns={columns}
       />
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-6 mt-auto no-print">
-        <div className="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
-          Excel Column Selector &amp; Data Extractor &bull; Extract Only Selected Columns &bull; Excel (.xlsx), CSV, PDF &bull; Multi-column Directory
-        </div>
-      </footer>
     </div>
   );
 }

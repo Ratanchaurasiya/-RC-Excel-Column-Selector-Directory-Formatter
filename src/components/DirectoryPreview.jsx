@@ -3,7 +3,7 @@ import {
   Download, Search, Plus, Edit2, Trash2, FileSpreadsheet,
   Printer, Check, Copy, Table, Columns2, ChevronDown, FileText,
   Layers, FileCode, Sparkles, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  UploadCloud
+  UploadCloud, Loader2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -28,6 +28,7 @@ export default function DirectoryPreview({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  const [exportingType, setExportingType] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   const [activeView, setActiveView] = useState('directory');
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -85,7 +86,10 @@ export default function DirectoryPreview({
 
   const triggerExport = async (exportFn, typeName) => {
     setIsExporting(true);
+    setExportingType(typeName);
     try {
+      // Small yield to let React render the spinner before blocking CPU
+      await new Promise(r => setTimeout(r, 60));
       await exportFn();
       confetti({
         particleCount: 80,
@@ -97,6 +101,7 @@ export default function DirectoryPreview({
       alert(`Export failed: ${err.message}`);
     } finally {
       setIsExporting(false);
+      setExportingType(null);
       setShowExportMenu(false);
     }
   };
@@ -108,10 +113,10 @@ export default function DirectoryPreview({
   };
 
   const handlePreviewFileChange = async (e) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
-    if (file && onFileUpload) {
-      await onFileUpload(file);
+    if (files.length > 0 && onFileUpload) {
+      await onFileUpload(files);
     }
   };
 
@@ -121,6 +126,7 @@ export default function DirectoryPreview({
       <input
         ref={previewFileInputRef}
         type="file"
+        multiple
         accept=".xlsx,.xls,.csv"
         className="hidden"
         onChange={handlePreviewFileChange}
@@ -239,10 +245,19 @@ export default function DirectoryPreview({
           <button
             onClick={() => triggerExport(activeView === 'directory' ? onGenerateDirectoryPDF : onGenerateStructuredPDF, 'PDF')}
             disabled={isExporting || filteredRecords.length === 0 || activeCols.length === 0}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
           >
-            <FileText className="w-3.5 h-3.5 text-red-600" />
-            PDF
+            {isExporting && exportingType === 'PDF' ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 text-red-600 animate-spin" />
+                Generating PDF...
+              </>
+            ) : (
+              <>
+                <FileText className="w-3.5 h-3.5 text-red-600" />
+                PDF
+              </>
+            )}
           </button>
 
           {/* Primary Excel Download Button */}
@@ -251,8 +266,17 @@ export default function DirectoryPreview({
             disabled={isExporting || filteredRecords.length === 0 || activeCols.length === 0}
             className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
           >
-            <Download className="w-4 h-4" />
-            {isExporting ? 'Generating Excel...' : activeView === 'directory' ? `Generate Excel (${columnsCount} Col)` : `Generate Excel (${activeCols.length} Columns)`}
+            {isExporting && exportingType === 'Excel' ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Generating Excel ({filteredRecords.length > 5000 ? `${filteredRecords.length} records...` : 'Please wait...'})
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                {activeView === 'directory' ? `Generate Excel (${columnsCount} Col)` : `Generate Excel (${activeCols.length} Columns)`}
+              </>
+            )}
           </button>
 
           {/* More Formats Dropdown */}

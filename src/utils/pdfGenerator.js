@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import { hexToRgb } from './colorUtils.js';
 
 /**
@@ -220,9 +220,26 @@ export async function generateDirectoryPDF(records, options = {}) {
   }
 
 
+  const blob = doc.output('blob');
+  if (options.returnBlobOnly) {
+    return blob;
+  }
+
   const baseName = options.uploadedFileName || 'Directory';
   const filename = `${baseName}.pdf`;
-  doc.save(filename);
+  
+  if (typeof window !== 'undefined') {
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(() => {
+      try { window.URL.revokeObjectURL(url); } catch (e) {}
+    }, 60000);
+  }
   return { success: true, filename };
 }
 
@@ -339,9 +356,25 @@ export async function generateStructuredPDF(records, options = {}) {
     currentY += rowHeight;
   }
 
+  const blob = doc.output('blob');
+  if (options.returnBlobOnly) {
+    return blob;
+  }
+
   const baseName = options.uploadedFileName || 'Extracted_Data';
   const filename = `${baseName}_selected_columns.pdf`;
-  doc.save(filename);
+  if (typeof window !== 'undefined') {
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(() => {
+      try { window.URL.revokeObjectURL(url); } catch (e) {}
+    }, 60000);
+  }
   return { success: true, filename };
 }
 

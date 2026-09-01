@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   CheckSquare, Square, Check, RefreshCw, Search, ArrowLeft, ArrowRight,
-  Sparkles, Layers, FileSpreadsheet, Download, Sliders, Eye, AlertCircle
+  Sparkles, Layers, FileSpreadsheet, Download, Sliders, Eye, AlertCircle,
+  Files, ToggleLeft, ToggleRight
 } from 'lucide-react';
 
 export default function ColumnSelector({
@@ -10,9 +11,14 @@ export default function ColumnSelector({
   onSelectionChange,
   tableData = [],
   onGenerateExcel,
-  isGenerating
+  isGenerating,
+  totalBatchFiles = 1,
+  syncColumnsAcrossBatch = true,
+  onToggleSyncColumns,
+  onApplyToAllFiles
 }) {
   const [searchFilter, setSearchFilter] = useState('');
+  const [justAppliedToAll, setJustAppliedToAll] = useState(false);
 
   if (!columns || columns.length === 0) {
     return null;
@@ -66,6 +72,14 @@ export default function ColumnSelector({
     onSelectionChange(updated);
   };
 
+  const handleApplyAllClick = () => {
+    if (onApplyToAllFiles) {
+      onApplyToAllFiles(selectedColumns);
+      setJustAppliedToAll(true);
+      setTimeout(() => setJustAppliedToAll(false), 2500);
+    }
+  };
+
   const filteredColumns = columns.filter(col =>
     col.toLowerCase().includes(searchFilter.toLowerCase())
   );
@@ -75,14 +89,14 @@ export default function ColumnSelector({
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-6 shadow-sm">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
               <Sliders className="w-4 h-4" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-base font-bold text-slate-900">
                   Select Fields to Include:
                 </h3>
@@ -93,16 +107,65 @@ export default function ColumnSelector({
                 }`}>
                   {selectedColumns.length} of {columns.length} Fields Selected
                 </span>
+                {totalBatchFiles > 1 && syncColumnsAcrossBatch && (
+                  <span className="bg-blue-100 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1">
+                    <Files className="w-3 h-3 text-blue-600" />
+                    Synced with all {totalBatchFiles} files
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Select the exact data fields you want to include in the directory cards &amp; Excel output.
+                Select the exact data fields you want to include in directory cards &amp; Excel output.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Quick Batch Selection Buttons */}
+        {/* Quick Batch Selection Buttons & Multi-File Sync Controls */}
         <div className="flex flex-wrap items-center gap-2">
+          {totalBatchFiles > 1 && (
+            <>
+              {/* Sync Toggle */}
+              {onToggleSyncColumns && (
+                <button
+                  onClick={() => onToggleSyncColumns(!syncColumnsAcrossBatch)}
+                  title="When ON, column selections apply automatically across all files in the batch"
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                    syncColumnsAcrossBatch
+                      ? 'bg-blue-50 text-blue-900 border-blue-300'
+                      : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  {syncColumnsAcrossBatch ? (
+                    <>
+                      <ToggleRight className="w-4 h-4 text-blue-600" />
+                      Sync All Files: ON
+                    </>
+                  ) : (
+                    <>
+                      <ToggleLeft className="w-4 h-4 text-slate-400" />
+                      Sync All Files: OFF
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Apply to All Files Button */}
+              <button
+                onClick={handleApplyAllClick}
+                title={`Apply this column selection ([${selectedColumns.join(', ')}]) across all ${totalBatchFiles} uploaded files`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                  justAppliedToAll
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                }`}
+              >
+                <Files className="w-3.5 h-3.5" />
+                {justAppliedToAll ? `✓ Applied to All ${totalBatchFiles} Files!` : `Apply to All (${totalBatchFiles} Files)`}
+              </button>
+            </>
+          )}
+
           <button
             onClick={handleSelectAll}
             className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"

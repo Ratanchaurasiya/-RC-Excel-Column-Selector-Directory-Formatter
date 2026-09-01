@@ -12,10 +12,10 @@ export default function Header({ onReset, onSampleLoad, onStudentSampleLoad, onF
   };
 
   const handleHeaderFileChange = async (e) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
-    if (file && onFileUpload) {
-      await onFileUpload(file);
+    if (files.length > 0 && onFileUpload) {
+      await onFileUpload(files);
     }
   };
 
@@ -49,6 +49,7 @@ export default function Header({ onReset, onSampleLoad, onStudentSampleLoad, onF
             <input
               ref={headerFileInputRef}
               type="file"
+              multiple
               accept=".xlsx,.xls,.csv"
               className="hidden"
               onChange={handleHeaderFileChange}
