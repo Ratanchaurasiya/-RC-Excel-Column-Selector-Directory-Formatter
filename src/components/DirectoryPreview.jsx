@@ -68,6 +68,7 @@ export default function DirectoryPreview({
   const addressColor = options.addressColor || '#334155';
   const phoneColor = options.phoneColor || '#0F172A';
   const borderColor = options.borderColor || '#334155';
+  const duplicateCount = duplicateAnalysis?.duplicateCount || 0;
 
   // Calculate pagination
   const effectivePageSize = pageSize === 'all' ? filteredRecords.length : Number(pageSize);
@@ -101,6 +102,10 @@ export default function DirectoryPreview({
   };
 
   const previewFileInputRef = useRef(null);
+
+  const handleBrowserPrint = () => {
+    window.print();
+  };
 
   const handlePreviewFileChange = async (e) => {
     const file = e.target.files?.[0];
